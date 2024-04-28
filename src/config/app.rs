@@ -4,11 +4,17 @@ use crate::api::{ping_controller, user_controller};
 
 pub fn config(cfg: &mut web::ServiceConfig) {
 
+    // General api
     cfg.service(
         web::scope("/api")
-            // 指定回调函数
-            // 而非实例调用
-            .service(web::resource("/ping").to(ping_controller::ping))
+            // Input the callback function from a module.
             .service(web::resource("/users/{user_id}").to(user_controller::retrieve_user))
+    );
+
+    // Health check
+    cfg.service(
+        web::scope("")
+            // This is a health check endpoint.
+            .service(web::resource("/ping").to(ping_controller::ping))
     );
 }
