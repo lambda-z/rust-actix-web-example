@@ -13,5 +13,8 @@ pub async fn print_banner() -> io::Result<()> {
     for line in reader.lines() {
         println!("{}", line?);
     }
+    println!("{}", "v1.0.0");
+    // println!("{}", env::var("PORT").unwrap());
+    println!("Server running at http://127.0.0.1:9090");
     Ok(())
 }

@@ -6,11 +6,13 @@ mod constant;
 mod utils;
 mod service;
 mod bo;
+mod settings;
 
 use crate::api::cache_controller::cache;
 use std::collections::HashMap;
 use actix_cors::Cors;
 use actix_web::{get, web, App, HttpServer, Responder, HttpResponse};
+use dotenv::var;
 use tokio::fs::File;
 use tokio::io::AsyncWriteExt;
 use serde::{Deserialize, Serialize};
@@ -18,6 +20,10 @@ use futures_util::StreamExt;
 use common::file::print_banner;
 use log::{info};
 use utils::log::init_logger;
+use mongodb::{bson::doc, options::IndexOptions, Client, Collection, IndexModel};
+use mongodb::bson::bson;
+use printpdf::lopdf::xobject::form;
+use crate::settings::Settings;
 
 /// save file
 async fn save_file(text: String) -> Result<(), Box<dyn std::error::Error>> {
@@ -35,7 +41,7 @@ async fn get_data() -> Result<String, Box<dyn std::error::Error>> {
 }
 
 
-// 接收上传文件
+// receive file and save it
 async fn upload_file(mut payload: web::Payload) -> Result<HttpResponse, actix_web::Error> {
     let mut file = File::create("test.jpg").await.unwrap();
     while let Some(chunk) = payload.next().await {
@@ -77,13 +83,6 @@ async fn index() -> impl Responder {
         name: Option::from("Tom".to_string()),
     };
 
-    // 将User转换为SimpleUser
-    // let user: SimpleUser = serde_json::from_str(
-    //     &serde_json::to_string(&raw_user)
-    //     .unwrap()
-    // )
-    //     .unwrap();
-
     let user = SimpleUser{
         id: raw_user.id.clone(),
         name: raw_user.name.clone(),
@@ -91,7 +90,6 @@ async fn index() -> impl Responder {
 
     HttpResponse::Ok().json(user)
 }
-
 
 
 #[get("/users/{user_id}")]
@@ -108,16 +106,29 @@ async fn greet(user_id: web::Path<String>) -> impl Responder {
 }
 
 
+async fn mongo_client() {
+    let uri = std::env::var("MONGO_URI").unwrap_or_else(
+        |_| "mongodb://localhost:27017".to_string());
+    info!("mongo uri: {:?}", uri);
+    let client = Client::with_uri_str(&uri).await.unwrap();
+    let db = client.database("test");
+    let collection = db.collection("test");
+    let user = User {
+        id: "123".to_string(),
+        name: Option::from("Tom".to_string()),
+    };
+    collection.insert_one(user, None).await.unwrap();
+}
+
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-
+    let settings = Settings::new();
     init_logger();
-    dotenv::dotenv().expect("Failed to read .env file");
     print_banner().await.unwrap();
-    println!("{}", "v1.0.0");
-    // println!("{}", env::var("PORT").unwrap());
-    println!("Server running at http://127.0.0.1:9090");
-    info!("Server running");
+    mongo_client().await;
+
+    info!("settings: {:?}", settings.port);
     HttpServer::new(move || {
         App::new()
             .service(
