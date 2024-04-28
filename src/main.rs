@@ -7,23 +7,15 @@ mod utils;
 mod service;
 mod bo;
 
-// use std::{env, io};
-// use std::sync::Mutex;
-// use std::time::Duration;
-use actix_web::web;
 use crate::api::cache_controller::cache;
 use std::collections::HashMap;
-// use std::env;
 use actix_cors::Cors;
-use actix_web::{get, web as other_web, App, HttpServer, Responder, HttpResponse};
-// use env_logger::init;
+use actix_web::{get, web, App, HttpServer, Responder, HttpResponse};
 use tokio::fs::File;
 use tokio::io::AsyncWriteExt;
 use serde::{Deserialize, Serialize};
 use futures_util::StreamExt;
-use common::cache::conn;
 use common::file::print_banner;
-use redis::AsyncCommands;
 use log::{info};
 use utils::log::init_logger;
 

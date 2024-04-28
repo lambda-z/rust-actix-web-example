@@ -1,4 +1,4 @@
-use actix_web::{get, HttpResponse};
+use actix_web::{HttpResponse};
 use crate::service::ping_service::{PingService, PingServiceTrait};
 
 /// #[get("/ping")]注解不支持方法级别的注解
@@ -10,4 +10,3 @@ pub(crate) async fn ping() -> HttpResponse {
     };
     HttpResponse::Ok().body(ping_service.ping().await)
 }
-

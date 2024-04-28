@@ -1,4 +1,3 @@
-use actix_web::web;
 use crate::service::user_service::{UserService, UserServiceTrait};
 
 impl UserServiceTrait for UserService {
