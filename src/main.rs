@@ -13,6 +13,7 @@ use crate::api::cache_controller::cache;
 use std::collections::HashMap;
 use actix_cors::Cors;
 use actix_web::{get, web, App, HttpServer, Responder, HttpResponse};
+use actix_web::web::Data;
 use dotenv::var;
 use tokio::fs::File;
 use tokio::io::AsyncWriteExt;
@@ -35,7 +36,7 @@ async fn save_file(text: String) -> Result<(), Box<dyn std::error::Error>> {
 
 
 async fn get_data() -> Result<String, Box<dyn std::error::Error>> {
-    let url = "https://www.baidu.com".to_string();
+    let url = "https://google.com".to_string();
     let client = reqwest::Client::new();
     let response = client.get(url).send().await?;
     let body = response.text().await?;
@@ -109,11 +110,11 @@ async fn greet(user_id: web::Path<String>) -> impl Responder {
 }
 
 
-async fn mongo_client() {
+async fn mongo_client(app_state: Data<AppState>) {
     let uri = std::env::var("MONGO_URI").unwrap_or_else(
         |_| "mongodb://localhost:27017".to_string());
-    info!("mongo uri: {:?}", uri);
-    let client = Client::with_uri_str(&uri).await.unwrap();
+    info!("mongo uri: {:?}", app_state.settings.mongo_url);
+    let client = Client::with_uri_str(&app_state.settings.mongo_url).await.unwrap();
     let db = client.database("test");
     let collection = db.collection("test");
     let user = User {
@@ -130,15 +131,18 @@ struct AppState {
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    init_logger();
-    print_banner().await.unwrap();
-    mongo_client().await;
 
+    let settings = Settings::new();
     let app_state = web::Data::new(AppState {
-        settings: Settings::new()
+        settings: settings.clone()
     });
 
+    init_logger();
+    print_banner().await.unwrap();
+    mongo_client(app_state.clone()).await;
+
     HttpServer::new(move || {
+
         App::new()
             .app_data(app_state.clone())
             .service(
@@ -159,7 +163,13 @@ async fn main() -> std::io::Result<()> {
                     .allow_any_method()
                     .allow_any_header()
                     .send_wildcard()
-                    .allowed_methods(vec!["GET", "POST", "PUT", "DELETE"])
+                    .allowed_methods(vec![
+                        "GET",
+                        "POST",
+                        "PATCH",
+                        "PUT",
+                        "DELETE"]
+                    )
                     .max_age(3600)
             )
             .wrap(
@@ -170,7 +180,7 @@ async fn main() -> std::io::Result<()> {
             // .wrap(actix_web::middleware::Logger::default())
             .configure(config::app::config)
     })
-        .bind(("127.0.0.1", 9090))?
+        .bind((settings.service_host, settings.service_port))?
         .run()
         .await
 }

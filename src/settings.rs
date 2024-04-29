@@ -1,21 +1,49 @@
 
 pub(crate) struct Settings {
+    pub service_host: String,
     pub service_port: u16,
     pub mongo_url: String,
 }
 
 
 impl Settings {
+
+    fn get_env(key: String, default: String) ->Option<String> {
+        Option::from(std::env::var(key)
+            .unwrap_or_else(
+                |_| default.to_string()
+            ))
+    }
+
+
     pub fn new() -> Self {
         dotenv::dotenv().expect("Failed to read .env file");
 
         Self {
-            service_port: std::env::var("PORT").unwrap_or_else(
-                |_| "9090".to_string()
-            ).parse().expect("PORT must be a number"),
+            service_host: Self::get_env(
+                "SERVICE_HOST".to_string(),
+                "127.0.0.1".to_string()).unwrap(),
 
-            mongo_url: "mongodb://
-            localhost:27018".to_string(),
+            service_port: Self::get_env(
+                "SERVICE_PORT".to_string(),
+                "8080".to_string()
+            ).unwrap()
+             .parse()
+             .expect("PORT must be a number"),
+
+            mongo_url: Self::get_env(
+                "MONGO_URI".to_string(),
+                "".to_string()).unwrap(),
+        }
+    }
+}
+
+impl Clone for Settings {
+    fn clone(&self) -> Self {
+        Self {
+            service_host: self.service_host.clone(),
+            service_port: self.service_port,
+            mongo_url: self.mongo_url.clone(),
         }
     }
 }
