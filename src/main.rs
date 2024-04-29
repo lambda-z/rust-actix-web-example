@@ -8,7 +8,7 @@ mod service;
 mod bo;
 mod settings;
 
-use crate::settings::Settings;
+use crate::settings::{Settings, SETTINGS};
 use crate::api::cache_controller::cache;
 use std::collections::HashMap;
 use actix_cors::Cors;
@@ -125,16 +125,16 @@ async fn mongo_client(app_state: Data<AppState>) {
 }
 
 struct AppState {
-    settings: Settings
+    settings: &'static Settings
 }
 
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
+    let settings = &*SETTINGS;
 
-    let settings = Settings::new();
     let app_state = web::Data::new(AppState {
-        settings: settings.clone()
+        settings: &*settings
     });
 
     init_logger();
@@ -180,7 +180,7 @@ async fn main() -> std::io::Result<()> {
             // .wrap(actix_web::middleware::Logger::default())
             .configure(config::app::config)
     })
-        .bind((settings.service_host, settings.service_port))?
+        .bind((&*settings.service_host, settings.service_port))?
         .run()
         .await
 }

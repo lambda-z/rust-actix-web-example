@@ -1,3 +1,6 @@
+use lazy_static::lazy_static;
+
+
 
 pub(crate) struct Settings {
     pub service_host: String,
@@ -38,12 +41,7 @@ impl Settings {
     }
 }
 
-impl Clone for Settings {
-    fn clone(&self) -> Self {
-        Self {
-            service_host: self.service_host.clone(),
-            service_port: self.service_port,
-            mongo_url: self.mongo_url.clone(),
-        }
-    }
+
+lazy_static! {
+    pub(crate) static ref SETTINGS: Settings = Settings::new();
 }
