@@ -8,6 +8,7 @@ mod service;
 mod bo;
 mod settings;
 
+use crate::settings::Settings;
 use crate::api::cache_controller::cache;
 use std::collections::HashMap;
 use actix_cors::Cors;
@@ -23,7 +24,7 @@ use utils::log::init_logger;
 use mongodb::{bson::doc, options::IndexOptions, Client, Collection, IndexModel};
 use mongodb::bson::bson;
 use printpdf::lopdf::xobject::form;
-use crate::settings::Settings;
+
 
 /// save file
 async fn save_file(text: String) -> Result<(), Box<dyn std::error::Error>> {
@@ -31,6 +32,7 @@ async fn save_file(text: String) -> Result<(), Box<dyn std::error::Error>> {
     file.write_all(text.as_bytes()).await?;
     Ok(())
 }
+
 
 async fn get_data() -> Result<String, Box<dyn std::error::Error>> {
     let url = "https://www.baidu.com".to_string();
@@ -44,9 +46,12 @@ async fn get_data() -> Result<String, Box<dyn std::error::Error>> {
 // receive file and save it
 async fn upload_file(mut payload: web::Payload) -> Result<HttpResponse, actix_web::Error> {
     let mut file = File::create("test.jpg").await.unwrap();
+
     while let Some(chunk) = payload.next().await {
         let data = chunk.unwrap();
-        file.write_all(&data).await.unwrap();
+        file.write_all(&data).await.unwrap_or_else(|e| {
+            info!("error: {:?}", e);
+        })
     }
 
     if let Ok(_file) = File::open("test.jpg").await {
@@ -72,8 +77,6 @@ struct SimpleUser {
     #[serde(rename = "name")]
     name: Option<String>,
 }
-
-
 
 #[get("/login")]
 async fn index() -> impl Responder {
@@ -120,17 +123,24 @@ async fn mongo_client() {
     collection.insert_one(user, None).await.unwrap();
 }
 
+struct AppState {
+    settings: Settings
+}
+
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    let settings = Settings::new();
     init_logger();
     print_banner().await.unwrap();
     mongo_client().await;
 
-    info!("settings: {:?}", settings.port);
+    let app_state = web::Data::new(AppState {
+        settings: Settings::new()
+    });
+
     HttpServer::new(move || {
         App::new()
+            .app_data(app_state.clone())
             .service(
                 web::scope("/api/v2")
                     .service(greet)
@@ -164,4 +174,3 @@ async fn main() -> std::io::Result<()> {
         .run()
         .await
 }
-
