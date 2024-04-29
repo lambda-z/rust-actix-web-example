@@ -6,11 +6,15 @@ mod constant;
 mod utils;
 mod service;
 mod bo;
+mod settings;
 
+use crate::settings::{Settings, SETTINGS};
 use crate::api::cache_controller::cache;
 use std::collections::HashMap;
 use actix_cors::Cors;
 use actix_web::{get, web, App, HttpServer, Responder, HttpResponse};
+use actix_web::web::Data;
+use dotenv::var;
 use tokio::fs::File;
 use tokio::io::AsyncWriteExt;
 use serde::{Deserialize, Serialize};
@@ -18,6 +22,10 @@ use futures_util::StreamExt;
 use common::file::print_banner;
 use log::{info};
 use utils::log::init_logger;
+use mongodb::{bson::doc, options::IndexOptions, Client, Collection, IndexModel};
+use mongodb::bson::bson;
+use printpdf::lopdf::xobject::form;
+
 
 /// save file
 async fn save_file(text: String) -> Result<(), Box<dyn std::error::Error>> {
@@ -26,8 +34,9 @@ async fn save_file(text: String) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+
 async fn get_data() -> Result<String, Box<dyn std::error::Error>> {
-    let url = "https://www.baidu.com".to_string();
+    let url = "https://google.com".to_string();
     let client = reqwest::Client::new();
     let response = client.get(url).send().await?;
     let body = response.text().await?;
@@ -35,12 +44,15 @@ async fn get_data() -> Result<String, Box<dyn std::error::Error>> {
 }
 
 
-// 接收上传文件
+// receive file and save it
 async fn upload_file(mut payload: web::Payload) -> Result<HttpResponse, actix_web::Error> {
     let mut file = File::create("test.jpg").await.unwrap();
+
     while let Some(chunk) = payload.next().await {
         let data = chunk.unwrap();
-        file.write_all(&data).await.unwrap();
+        file.write_all(&data).await.unwrap_or_else(|e| {
+            info!("error: {:?}", e);
+        })
     }
 
     if let Ok(_file) = File::open("test.jpg").await {
@@ -67,8 +79,6 @@ struct SimpleUser {
     name: Option<String>,
 }
 
-
-
 #[get("/login")]
 async fn index() -> impl Responder {
 
@@ -77,13 +87,6 @@ async fn index() -> impl Responder {
         name: Option::from("Tom".to_string()),
     };
 
-    // 将User转换为SimpleUser
-    // let user: SimpleUser = serde_json::from_str(
-    //     &serde_json::to_string(&raw_user)
-    //     .unwrap()
-    // )
-    //     .unwrap();
-
     let user = SimpleUser{
         id: raw_user.id.clone(),
         name: raw_user.name.clone(),
@@ -91,7 +94,6 @@ async fn index() -> impl Responder {
 
     HttpResponse::Ok().json(user)
 }
-
 
 
 #[get("/users/{user_id}")]
@@ -108,18 +110,41 @@ async fn greet(user_id: web::Path<String>) -> impl Responder {
 }
 
 
+async fn mongo_client(app_state: Data<AppState>) {
+    let uri = std::env::var("MONGO_URI").unwrap_or_else(
+        |_| "mongodb://localhost:27017".to_string());
+    info!("mongo uri: {:?}", app_state.settings.mongo_url);
+    let client = Client::with_uri_str(&app_state.settings.mongo_url).await.unwrap();
+    let db = client.database("test");
+    let collection = db.collection("test");
+    let user = User {
+        id: "123".to_string(),
+        name: Option::from("Tom".to_string()),
+    };
+    collection.insert_one(user, None).await.unwrap();
+}
+
+struct AppState {
+    settings: &'static Settings
+}
+
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
+    let settings = &*SETTINGS;
+
+    let app_state = web::Data::new(AppState {
+        settings: &*settings
+    });
 
     init_logger();
-    dotenv::dotenv().expect("Failed to read .env file");
     print_banner().await.unwrap();
-    println!("{}", "v1.0.0");
-    // println!("{}", env::var("PORT").unwrap());
-    println!("Server running at http://127.0.0.1:9090");
-    info!("Server running");
+    mongo_client(app_state.clone()).await;
+
     HttpServer::new(move || {
+
         App::new()
+            .app_data(app_state.clone())
             .service(
                 web::scope("/api/v2")
                     .service(greet)
@@ -138,7 +163,13 @@ async fn main() -> std::io::Result<()> {
                     .allow_any_method()
                     .allow_any_header()
                     .send_wildcard()
-                    .allowed_methods(vec!["GET", "POST", "PUT", "DELETE"])
+                    .allowed_methods(vec![
+                        "GET",
+                        "POST",
+                        "PATCH",
+                        "PUT",
+                        "DELETE"]
+                    )
                     .max_age(3600)
             )
             .wrap(
@@ -149,8 +180,7 @@ async fn main() -> std::io::Result<()> {
             // .wrap(actix_web::middleware::Logger::default())
             .configure(config::app::config)
     })
-        .bind(("127.0.0.1", 9090))?
+        .bind((&*settings.service_host, settings.service_port))?
         .run()
         .await
 }
-
