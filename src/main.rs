@@ -19,12 +19,14 @@ use tokio::fs::File;
 use tokio::io::AsyncWriteExt;
 use serde::{Deserialize, Serialize};
 use futures_util::StreamExt;
+use lazy_static::lazy_static;
 use common::file::print_banner;
 use log::{info};
 use utils::log::init_logger;
 use mongodb::{bson::doc, options::IndexOptions, Client, Collection, IndexModel};
 use mongodb::bson::bson;
 use printpdf::lopdf::xobject::form;
+use crate::common::mongo::Mongo;
 
 
 /// save file
@@ -125,7 +127,8 @@ async fn mongo_client(app_state: Data<AppState>) {
 }
 
 struct AppState {
-    settings: &'static Settings
+    settings: &'static Settings,
+    mongo: &'static mut Mongo
 }
 
 
@@ -133,31 +136,29 @@ struct AppState {
 async fn main() -> std::io::Result<()> {
     let settings = &*SETTINGS;
 
+    lazy_static! {
+        static ref MONGO: Mongo = Mongo {
+            uri: settings.mongo_url.clone(),
+            db_name: "test".to_string(),
+            client: None,
+            db: None
+        };
+    }
+
     let app_state = web::Data::new(AppState {
-        settings: &*settings
+        settings: &*settings,
+        mongo: &mut *MONGO
     });
 
     init_logger();
     print_banner().await.unwrap();
-    mongo_client(app_state.clone()).await;
 
     HttpServer::new(move || {
-
         App::new()
+            // config app state
             .app_data(app_state.clone())
-            .service(
-                web::scope("/api/v2")
-                    .service(greet)
-                    .service(index)
-                    .service(cache)
-                    .service(web::resource("/upload")
-                        .route(
-                        web::post().to(upload_file)
-                    )
-                    )
-            )
+            // config cors
             .wrap(
-                // config cors
                 Cors::default()
                     .allow_any_origin()
                     .allow_any_method()
@@ -172,12 +173,13 @@ async fn main() -> std::io::Result<()> {
                     )
                     .max_age(3600)
             )
+            // config logger
             .wrap(
                 actix_web::middleware::Logger::new(
                     r#"%a "%r" %s %b "%{Referer}i" "%{User-Agent}i" %D"#,
                 ),
             )
-            // .wrap(actix_web::middleware::Logger::default())
+            // config routes
             .configure(config::app::config)
     })
         .bind((&*settings.service_host, settings.service_port))?
