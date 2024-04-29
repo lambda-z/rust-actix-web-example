@@ -5,6 +5,6 @@ pub(crate) mod cache;
 
 /// 什么是crate？
 /// crate简单讲是一个独立的包，这个包的标志就是含有Cargo.toml文件
-mod excel;
+pub(crate) mod excel;
 pub(crate) mod file;
-mod mongo;
+pub(crate) mod mongo;
