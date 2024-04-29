@@ -128,7 +128,7 @@ async fn mongo_client(app_state: Data<AppState>) {
 
 struct AppState {
     settings: &'static Settings,
-    mongo: &'static mut Mongo
+    mongo: &'static Mongo
 }
 
 
@@ -137,17 +137,21 @@ async fn main() -> std::io::Result<()> {
     let settings = &*SETTINGS;
 
     lazy_static! {
-        static ref MONGO: Mongo = Mongo {
-            uri: settings.mongo_url.clone(),
-            db_name: "test".to_string(),
-            client: None,
-            db: None
-        };
+            static ref URI: String = std::env::var("MONGO_URI").unwrap_or_else(
+                |_| "mongodb://localhost:27017".to_string());
+            static ref DB_NAME: String  = std::env::var("MONGO_DB").unwrap_or_else(
+                |_| "test".to_string());
+            static ref  MO: Mongo = Mongo {
+                uri: URI.clone(),
+                db_name: DB_NAME.clone(),
+                client: None,
+                db: None
+            };
     }
 
     let app_state = web::Data::new(AppState {
         settings: &*settings,
-        mongo: &mut *MONGO
+        mongo: &*MO
     });
 
     init_logger();

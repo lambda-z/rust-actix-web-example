@@ -1,3 +1,6 @@
+
+use core::ops::DerefMut;
+use std::ops::Deref;
 use log::info;
 use mongodb::{bson, Client, Database};
 use futures_util::StreamExt;
@@ -21,7 +24,7 @@ impl Mongo {
         &*self.init().await
     }
 
-    pub(crate) async fn init(&mut self) -> &mut Mongo {
+    pub(crate) async fn init(&mut self) -> &Self {
         info!("mongo uri: {:?}", self.uri);
         self.client = Option::from(
             Client::with_uri_str(&self.uri).await.unwrap()
@@ -42,4 +45,18 @@ impl Mongo {
         collection.find_one(filter, None).await.unwrap().unwrap()
     }
 
+}
+
+impl Deref for Mongo {
+    type Target = ();
+
+    fn deref(&self) -> &Self::Target {
+        todo!()
+    }
+}
+
+impl DerefMut for Mongo {
+    fn deref_mut(&mut self) -> &mut () {
+        self
+    }
 }
