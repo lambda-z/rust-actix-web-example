@@ -11,8 +11,10 @@ mod settings;
 use crate::settings::{Settings, SETTINGS};
 use crate::api::cache_controller::cache;
 use std::collections::HashMap;
+use std::fmt::{Display, Formatter};
 use actix_cors::Cors;
-use actix_web::{get, web, App, HttpServer, Responder, HttpResponse};
+use actix_web::{get, web, App, HttpServer, Responder, HttpResponse, post};
+use actix_web::cookie::time::macros::date;
 use actix_web::web::Data;
 use dotenv::var;
 use tokio::fs::File;
@@ -79,19 +81,34 @@ struct SimpleUser {
 
     #[serde(rename = "name")]
     name: Option<String>,
+
+    token: String
 }
 
-#[get("/login")]
-async fn index() -> impl Responder {
+#[derive(Deserialize)]
+struct PostData {
+    username: String,
+    password: String
+}
+
+#[post("/login")]
+async fn login(data: web::Json<PostData>) -> impl Responder {
+
+    println!("{}", data.username);
 
     let raw_user = User {
         id: "123".to_string(),
         name: Option::from("Tom".to_string()),
     };
 
+
+    /// 生成token
+    let token = "12121212".to_string();
+
     let user = SimpleUser{
         id: raw_user.id.clone(),
         name: raw_user.name.clone(),
+        token
     };
 
     HttpResponse::Ok().json(user)
@@ -159,6 +176,7 @@ async fn main() -> std::io::Result<()> {
 
     HttpServer::new(move || {
         App::new()
+            .service(login)
             // config app state
             .app_data(app_state.clone())
             // config cors
